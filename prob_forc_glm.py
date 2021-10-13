@@ -4,7 +4,8 @@ import statsmodels.api as sm
 from sklearn.preprocessing import OneHotEncoder as ohe
 import datetime as dt
 from scipy.stats import poisson
-import multiprocessing
+import multiprocessing as mp
+import pickle
 
 class reader:
     """This class is mainly a placeholder for future updates in the data process"""
@@ -44,12 +45,12 @@ class model(reader):
         last_row_position = base_data.shape[0] - 1
 
         future_data = pd.DataFrame({'date': np.arange(np.max(base_data.date) + 1, np.max(base_data.date) + days + 1),
-            'current_price': np.repeat(X_transf.current_price[last_row_position], days),
-            'minutes_active': np.repeat(X_transf.minutes_active[last_row_position], days),
-            'currency_REA': np.repeat(X_transf.currency_REA[last_row_position], days),
-            'listing_type_classic': np.repeat(X_transf.listing_type_classic[last_row_position], days),
-            'shipping_payment_free_shipping': np.repeat(X_transf.shipping_payment_free_shipping[last_row_position], days),
-            'bias': np.repeat(X_transf.bias[last_row_position], days)
+            'current_price': np.repeat(base_data.current_price[last_row_position], days),
+            'minutes_active': np.repeat(base_data.minutes_active[last_row_position], days),
+            'currency_REA': np.repeat(base_data.currency_REA[last_row_position], days),
+            'listing_type_classic': np.repeat(base_data.listing_type_classic[last_row_position], days),
+            'shipping_payment_free_shipping': np.repeat(base_data.shipping_payment_free_shipping[last_row_position], days),
+            'bias': np.repeat(base_data.bias[last_row_position], days)
         })
 
         return(future_data)
@@ -76,81 +77,41 @@ class mass_model(model):
     def __init__(self, dt_source):
         super().__init__(dt_source)
 
-    def fit_massive(self):
-        pool = multiprocessing.Pool()
+    def fit_massive(self, n_jobs):
+        """Fit models for the whole dataset"""
+        sku_list = np.unique(self.data['sku'])
+        pool = mp.Pool(processes = n_jobs)
+        return(pool.map(self.predict_individual, sku_list))
+        
 
 
+def main():
+    print("Process started at " + str(dt.datetime.now().strftime("%H:%M:%S")))
+    n_jobs = 4
+    data_path = "./train_data.parquet"
+    output_path = "./model_results.pickle"
+    models = mass_model(data_path).fit_massive(n_jobs)
+    with open(output_path, 'wb') as x:
+        pickle.dump(models, x)
+    print("Process finished at " + str(dt.datetime.now().strftime("%H:%M:%S")))
 
     
+if __name__ == '__main__':
+    main()
 
 
+# ================= pruebas de error en paralelización =============
+
+modelo = model("./tests-forecasting/train_data.parquet")
+sku_list = np.unique(modelo.data['sku'])
+
+for i in sku_list:
+    print(i)
+    modelo.predict_individual(i)
 
 
-# ========== Pruebas de la clase ==========
+modelo.data[modelo.data.sku == 2]
+sku_list[2]
 
-data_path = "./tests-forecasting/train_data.parquet"
-
-modelo = model(data_path)
-feat = modelo.make_features(modelo.data.loc[modelo.data.sku == 464801])
-fit_a = modelo.fit_individual(feat)
-future = modelo.make_future_data(feat['X'])
-modelo.predict_individual(464801)
-
-
-
-a['means'] = fit_a.predict(future)
-a['variances'] = a['means']
-quantile = (0.05, 0.5, 0.95)
-
-for i in quantile:
-    a["q_" + str(quantile)] = poisson.ppf(i, mu = means)
-
-
-
-a = {}
-a['ola'] = 5
-a
-fit_a.predict(future)
-
-modelo.fit_inidividual(464801)
-
-
-df_prueba = df.loc[df.sku == 464801]
-
-df_prueba[['sold_quantity']]
-
-
-sm.GLM(np.array(y), np.array(X))
-
-
-list_categ_features = ['currency', 'listing_type', 'shipping_payment']
-list_cont_features = ['date', 'current_price', 'minutes_active']
-data_df['Date'] = pd.to_datetime(data_df['Date'])
-data_df['Date']=data_df['Date'].map(dt.datetime.toordinal)
-
-
-
-X_transf = pd.concat([X[list_cont_features], 
-    pd.get_dummies(X[list_categ_features])], axis = 1)
-X_transf = (X_transf.
-    assign(date = lambda X: pd.to_datetime(X.date).map(dt.datetime.toordinal)).
-    assign(bias = 1))
-
-
-model_ind = sm.GLM(np.array(y),
-    X_transf,
-    family = sm.families.Poisson()).fit()
-
-model_ind.summary()
-
-
-X_transf
-
-# Expand date
-
-
-
-
-
-
+modelo.predict_individual(2)
 
